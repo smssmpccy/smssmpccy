@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>兩位數除以一位數練習</title>
+    <!-- 引入 Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- 設定 Tailwind 配置和 Inter 字體 -->
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@100..900&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f0f4f8; /* 淺藍色背景 */
+        }
+        /* 自定義樣式以獲得更好的視覺效果 */
+        .container-card {
+            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.1), 0 5px 15px -5px rgba(0, 0, 0, 0.04);
+        }
+    </style>
+</head>
+<body class="flex items-center justify-center min-h-screen p-4">
+
+    <!-- 主應用程式卡片 -->
+    <div id="app" class="container-card w-full max-w-lg bg-white p-6 md:p-10 rounded-xl">
+        <h1 class="text-3xl md:text-4xl font-extrabold text-indigo-700 mb-6 text-center">
+            兩位數除法大挑戰
+        </h1>
+        <p class="text-center text-gray-600 mb-8">
+            請計算出下面的除法題目的商（Quotient）和餘數（Remainder）。
+        </p>
+
+        <!-- 顯示題目 -->
+        <div id="problemDisplay" class="text-5xl font-mono font-bold text-center text-gray-800 mb-8 p-4 bg-yellow-50 rounded-lg border-2 border-yellow-200">
+            <!-- 題目將由 JavaScript 填充 -->
+            <span id="dividend">--</span> ÷ <span id="divisor">--</span>
+        </div>
+
+        <!-- 輸入區域 -->
+        <div class="space-y-6">
+            <!-- 商 (Quotient) 輸入 -->
+            <div class="flex flex-col sm:flex-row sm:items-center">
+                <label for="quotientInput" class="w-full sm:w-1/3 text-lg font-semibold text-gray-700 mb-2 sm:mb-0">
+                    商 (Quotient):
+                </label>
+                <input type="number" id="quotientInput" placeholder="輸入商"
+                       class="w-full sm:w-2/3 p-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-indigo-500 transition duration-150"
+                       min="0" required>
+            </div>
+
+            <!-- 餘數 (Remainder) 輸入 -->
+            <div class="flex flex-col sm:flex-row sm:items-center">
+                <label for="remainderInput" class="w-full sm:w-1/3 text-lg font-semibold text-gray-700 mb-2 sm:mb-0">
+                    餘數 (Remainder):
+                </label>
+                <input type="number" id="remainderInput" placeholder="輸入餘數"
+                       class="w-full sm:w-2/3 p-3 border-2 border-gray-300 rounded-lg focus:border-indigo-500 focus:ring-indigo-500 transition duration-150"
+                       min="0" required>
+            </div>
+
+            <!-- 檢查按鈕 -->
+            <button id="checkButton" onclick="checkAnswer()"
+                    class="w-full py-3 bg-indigo-600 text-white text-xl font-bold rounded-lg shadow-lg hover:bg-indigo-700 transition duration-200 ease-in-out transform hover:scale-[1.01] active:scale-95 disabled:opacity-50 mt-6">
+                檢查答案
+            </button>
+            
+            <!-- 下一題按鈕 (初始隱藏) -->
+            <button id="nextButton" onclick="nextProblem()"
+                    class="w-full py-3 bg-emerald-500 text-white text-xl font-bold rounded-lg shadow-lg hover:bg-emerald-600 transition duration-200 ease-in-out transform hover:scale-[1.01] active:scale-95 hidden">
+                下一題
+            </button>
+        </div>
+
+        <!-- 結果訊息區域 (使用自定義 Modal 替代 alert) -->
+        <div id="messageContainer" class="fixed inset-0 bg-gray-900 bg-opacity-50 backdrop-blur-sm z-50 flex items-center justify-center hidden" onclick="hideMessage()">
+            <div id="messageBox" class="bg-white p-8 rounded-xl max-w-sm w-11/12 text-center transform transition-all duration-300 scale-95" onclick="event.stopPropagation()">
+                <h3 id="messageTitle" class="text-2xl font-bold mb-3">結果</h3>
+                <p id="messageText" class="text-gray-700 mb-5">訊息內容</p>
+                <button onclick="hideMessage()" class="bg-indigo-500 text-white px-4 py-2 rounded-lg hover:bg-indigo-600 transition">
+                    確定
+                </button>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- JavaScript 邏輯 -->
+    <script type="module">
+        // Firebase 相關（標準初始化，雖然此應用程式不使用資料庫，但保留結構）
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Global variables provided by the environment
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : null;
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+
+        let db, auth;
+
+        // --- Firebase/Auth Initialization (Standard Boilerplate) ---
+        const initializeFirebase = async () => {
+            if (firebaseConfig) {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+                
+                try {
+                    if (initialAuthToken) {
+                        await signInWithCustomToken(auth, initialAuthToken);
+                        console.log("Signed in with custom token.");
+                    } else {
+                        await signInAnonymously(auth);
+                        console.log("Signed in anonymously.");
+                    }
+                } catch (error) {
+                    console.error("Firebase sign-in failed:", error);
+                }
+            } else {
+                console.warn("Firebase config is missing. Application will run without authentication/database features.");
+            }
+        };
+
+        // --- Division Game Logic ---
+        let currentProblem = {
+            dividend: 0, // 被除數
+            divisor: 0,  // 除數
+            quotient: 0, // 商 (正確答案)
+            remainder: 0 // 餘數 (正確答案)
+        };
+
+        // DOM 元素引用
+        const dividendEl = document.getElementById('dividend');
+        const divisorEl = document.getElementById('divisor');
+        const quotientInput = document.getElementById('quotientInput');
+        const remainderInput = document.getElementById('remainderInput');
+        const checkButton = document.getElementById('checkButton');
+        const nextButton = document.getElementById('nextButton');
+        const messageContainer = document.getElementById('messageContainer');
+        const messageTitle = document.getElementById('messageTitle');
+        const messageText = document.getElementById('messageText');
+        const messageBox = document.getElementById('messageBox');
+        
+        /**
+         * 隨機生成一個兩位數除以一位數的題目。
+         * 確保除數在 2 到 9 之間，被除數在 10 到 99 之間。
+         */
+        function generateProblem() {
+            // 被除數 (Dividend): 10 - 99 (兩位數)
+            let dividend = Math.floor(Math.random() * 90) + 10;
+            // 除數 (Divisor): 2 - 9 (一位數, 排除 0 和 1)
+            let divisor = Math.floor(Math.random() * 8) + 2;
+
+            // 計算正確的商和餘數
+            let quotient = Math.floor(dividend / divisor);
+            let remainder = dividend % divisor;
+
+            currentProblem = { dividend, divisor, quotient, remainder };
+
+            // 更新 UI
+            dividendEl.textContent = dividend;
+            divisorEl.textContent = divisor;
+            quotientInput.value = '';
+            remainderInput.value = '';
+            
+            // 重置按鈕狀態
+            checkButton.classList.remove('hidden');
+            nextButton.classList.add('hidden');
+            quotientInput.disabled = false;
+            remainderInput.disabled = false;
+            
+            // 讓輸入框自動聚焦
+            quotientInput.focus();
+        }
+
+        /**
+         * 檢查使用者輸入的答案是否正確。
+         */
+        window.checkAnswer = function() {
+            const userQuotient = parseInt(quotientInput.value, 10);
+            const userRemainder = parseInt(remainderInput.value, 10);
+
+            // 檢查輸入是否為有效數字
+            if (isNaN(userQuotient) || isNaN(userRemainder)) {
+                showMessage('錯誤', '請確保商和餘數都輸入了數字！', 'text-red-600');
+                return;
+            }
+
+            const { dividend, divisor, quotient, remainder } = currentProblem;
+            
+            // 驗證除法公式： 被除數 = 商 * 除數 + 餘數
+            const isValidEquation = (userQuotient * divisor + userRemainder) === dividend;
+            // 驗證餘數性質： 餘數 < 除數
+            const isValidRemainder = userRemainder < divisor && userRemainder >= 0;
+
+            if (userQuotient === quotient && userRemainder === remainder && isValidEquation && isValidRemainder) {
+                // 答案完全正確
+                showMessage(
+                    '🎉 太棒了! 答對了! 🎉',
+                    `正確答案是：${dividend} ÷ ${divisor} = ${quotient} 餘 ${remainder}。你做得非常好！`,
+                    'text-green-600'
+                );
+                // 禁用輸入，顯示下一題按鈕
+                quotientInput.disabled = true;
+                remainderInput.disabled = true;
+                checkButton.classList.add('hidden');
+                nextButton.classList.remove('hidden');
+                nextButton.focus(); // 讓下一題按鈕聚焦
+            } else {
+                let feedbackText = `答案不正確，請再試一次！`;
+                if (!isValidRemainder) {
+                    feedbackText += `<br>提醒：餘數（${userRemainder}）必須小於除數（${divisor}）。`;
+                } else if (!isValidEquation) {
+                    feedbackText += `<br>提醒：請檢查公式：商 × 除數 + 餘數 = 被除數。`;
+                }
+                
+                showMessage(
+                    '🧐 再試一次',
+                    feedbackText,
+                    'text-red-600'
+                );
+            }
+        }
+
+        /**
+         * 進入下一題。
+         */
+        window.nextProblem = function() {
+            generateProblem();
+        }
+
+        /**
+         * 顯示自定義訊息框。
+         */
+        function showMessage(title, text, titleColorClass = 'text-indigo-700') {
+            messageTitle.textContent = title;
+            messageTitle.className = `text-2xl font-bold mb-3 ${titleColorClass}`;
+            messageText.innerHTML = text; // 使用 innerHTML 允許 <br>
+            messageContainer.classList.remove('hidden');
+            // 添加動畫效果
+            setTimeout(() => {
+                messageBox.classList.remove('scale-95');
+                messageBox.classList.add('scale-100');
+            }, 10);
+        }
+
+        /**
+         * 隱藏自定義訊息框。
+         */
+        window.hideMessage = function() {
+            messageBox.classList.remove('scale-100');
+            messageBox.classList.add('scale-95');
+            setTimeout(() => {
+                messageContainer.classList.add('hidden');
+                // 隱藏後如果下一題按鈕可見，則重新聚焦到它
+                if (!nextButton.classList.contains('hidden')) {
+                     nextButton.focus();
+                } else {
+                    quotientInput.focus();
+                }
+            }, 300);
+        }
+
+        // 監聽 Enter 鍵，按下後執行 checkAnswer
+        document.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                if (!messageContainer.classList.contains('hidden')) {
+                    // 如果訊息框彈出，Enter 鍵執行關閉
+                    hideMessage();
+                    return;
+                }
+                
+                if (!checkButton.classList.contains('hidden') && !checkButton.disabled) {
+                    // 如果檢查按鈕可見，Enter 鍵執行檢查
+                    checkAnswer();
+                } else if (!nextButton.classList.contains('hidden')) {
+                    // 如果下一題按鈕可見，Enter 鍵執行下一題
+                    nextProblem();
+                }
+            }
+        });
+
+        // 應用程式啟動點
+        window.onload = function() {
+            initializeFirebase();
+            generateProblem();
+        };
+
+    </script>
+</body>
+</html>
